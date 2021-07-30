@@ -428,5 +428,20 @@ def app():
             with st.beta_container():
                 st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/50/Sante-publique-France-logo.svg/1200px-Sante-publique-France-logo.svg.png")
 
+        with col14:
+            with st.beta_container():
+                st.markdown(''' <p> L'agence Santé publique France souhaite rendre les données de santé publique plus accessibles, \
+                     pour qu’elles soient utilisables par ses agents. Pour cela, nous faisons appel à vous pour réaliser une \
+                         première exploration et visualisation des données, afin que nos agents puissent ensuite s’appuyer sur vos résultats. </p>\
+
+                        <p> L'analyse est basée sur le jeu de données Open Food Facts. \
+                            Les champs sont séparés en quatre sections :\
+                            <ul>
+                                <li>Les informations générales sur la fiche du produit : nom, date de modification, etc. </li>\
+                                <li>Un ensemble de tags : catégorie du produit, localisation, origine, etc.</li>\
+                                <li>Les ingrédients composant les produits et leurs additifs éventuels. </li>\
+                                <li>Des informations nutritionnelles : quantité en grammes d’un nutriment pour 100 grammes du produit. </li>
+                            </ul> </p>
+                        ''', unsafe_allow_html=True)
 if __name__ == "__main__":
     app()
