@@ -38,7 +38,7 @@ def load_data():
     with contextlib.closing(urllib.request.urlopen(url=data_url)) as rd:
         for number, chunk in enumerate(pd.read_csv(rd, chunksize=chunksize, index_col=0)):
             list_of_dfs.append(chunk)
-            my_bar.progress(number+11)
+            my_bar.progress(number+5)
     
     df=pd.concat(list_of_dfs)
     my_bar = my_bar.empty()
@@ -112,7 +112,7 @@ def nutrigrade_par_brand(df):
 @st.cache()
 def fit_pca(df):
     n_comp = 6
-    data_pca = df[['energy-kcal_100g','fat_100g','carbohydrates_100g','sugars_100g','proteins_100g','salt_100g']]
+    data_pca = df[['energy-kcal_100g','fat_100g','carbohydrates_100g','sugars_100g','proteins_100g','salt_100g','saturated-fat_100g']]
     X = data_pca.values
     names = df['nutriscore_grade']
     features = data_pca.columns
@@ -273,7 +273,7 @@ def fit_multinom_logit(df, subset):
     df_sample=df.dropna(subset=['nutriscore_grade']).sample(10000)
     y=df_sample['nutriscore_grade']
     x=df_sample[subset]
-    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size = 0.20, random_state = 5)
+    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size = 0.20, stratify=y,random_state = 5)
     logit_model=sm.MNLogit(y_train, X_train)
     result=logit_model.fit()
     stats=result.summary()
@@ -283,7 +283,8 @@ def chi2_test(df):
     df_with_brand=df.dropna(subset=['brands','nutriscore_grade'])
     topBrandsList=df_with_brand.brands.value_counts().head(10).index
     topBrands=df_with_brand[df_with_brand['brands'].isin(topBrandsList)]
-    cont=pd.crosstab(topBrands['brands'], topBrands['nutriscore_grade'])
+    topBrandsSample=topBrands.sample(1000)
+    cont=pd.crosstab(topBrandsSample['brands'], topBrandsSample['nutriscore_grade'])
     st_chi2, st_p, st_dof, st_exp=scipy.stats.chi2_contingency(cont)
     chi2=pd.DataFrame({'stats':[st_chi2],'p-value':[st_p],'degree of freedom':[st_dof], 'res':['significatif']})
     return cont, chi2
@@ -298,9 +299,9 @@ def app():
     
     if choice == "Visualisations":
         
-        nutriments = ('fat_100g','carbohydrates_100g','sugars_100g','proteins_100g','salt_100g')
+        nutriments = ('fat_100g','carbohydrates_100g','sugars_100g','proteins_100g','salt_100g','saturated-fat_100g','energy-kcal_100g')
         nutriment = st.selectbox("Choix du nutriment", nutriments)        
-        st.subheader(f"Distribution et boxplot de {nutriment} en fonction du grade nutritionel")
+        st.subheader(f"Distribution et boxplot de {nutriment} en fonction du nutri-score")
 
         col1, col2 = st.beta_columns(2)
         
@@ -323,13 +324,13 @@ def app():
 
         with col3:
             with st.beta_container():
-                st.subheader('Répartition des produits dans la base de donnée en fonction de leur grade nutritionnel')
+                st.subheader('Répartition des produits dans la base de donnée en fonction de leur nutri-score')
                 st.write("")
                 st.pyplot(produits_par_nutrigrade(df))
                
         with col4:
             with st.beta_container():
-                st.subheader('Repartition des grades nutritionels en fonction des catégories de produits')
+                st.subheader('Répartition des nutri-scores au sein des catégories établies par PNNS')
                 st.write("")
                 st.pyplot(pnns_nutrigrade(df))
         
@@ -337,13 +338,13 @@ def app():
         
         with col5:
             with st.beta_container():
-                st.subheader('Repartition des grades nutritionels en fonction du marque des produits')
+                st.subheader('Répartition des nutri-scores parmi les produits commercialisés par les 10 plus grandes marques')
                 st.write("")
                 st.pyplot(nutrigrade_par_brand(df))
 
         with col6:
             with st.beta_container():
-                st.subheader('Pourcentage de produits renseignés dans le base en fonction du pays de vente')
+                st.subheader('Pourcentage de produits par pays')
                 st.write("")
                 st.pyplot(produits_par_pays(df))
 
@@ -371,14 +372,14 @@ def app():
                 st.pyplot(display_factorial_planes(X_projected[:2000], n_comp, pca, [(0,1)], illustrative_var = df['nutriscore_grade'].dropna()[:2000], palette=PALETTE, alpha=0.5))
 
     elif choice == "Tests des hyppothèses":
-        st.subheader('Hyppothèse 1: nutrigrade depend des indicateurs nutritionelles')
+        st.subheader('Hypothèse 1a: les produits avec un nutri-score différent ne contiennent pas la même quantité de sucre / gras / gras saturé / kilocalories / carbohydrate / proteins / sel.')
         st.text(""" * Vérifier la distribution de données
 * Confirmer avec un test Shapiro-Wilk
 * Véfifier l'hyppothèse avec un test Kruskal-Wallis""")
 
-        nutriments = ['energy-kcal_100g','fat_100g','carbohydrates_100g','sugars_100g','proteins_100g','salt_100g']
+        nutriments = ['energy-kcal_100g','fat_100g','carbohydrates_100g','sugars_100g','proteins_100g','salt_100g','saturated-fat_100g']
         nutriment = st.selectbox("Choix du nutriment", nutriments)        
-        st.subheader(f"Distribution de {nutriment} et sa distribution théorique normale")
+        st.subheader(f"Distribution empirique de {nutriment} et sa distribution théorique normale")
         
         col9, col10 = st.beta_columns(2)
 
@@ -408,10 +409,11 @@ def app():
                 kruskalStyle=kruskalRes.style.format(formatter={'p-value': "{:.3g}"})
                 st.dataframe(kruskalStyle)
 
+        st.subheader('Hypothèse 1b: changement du quantite de sucre / gras / gras saturé / kilocalories / carbohydrate / proteins / sel dans un produit influence son nutri-score.')
         stats=fit_multinom_logit(df, nutriments)
         st.text(stats)
-        st.subheader("L'hyppothèse 2: l'infuence de la marque des 10 brands le plus connus sur nutrgrade")
-        st.text('Chi2 est le test le plus souvent utilisé pour deux variables catégorielles')
+        st.subheader("L'hyppothèse 2: l’existence d’un lien entre la marque et le nutri-score des produits qu'elle commercialise")
+        st.text('Chi2 est le test le plus souvent utilisé pour tester un lien entre les deux variables catégorielles')
 
         cont, chi2 = chi2_test(df)
         
@@ -430,7 +432,7 @@ def app():
 
         with col14:
             with st.beta_container():
-                st.markdown(''' <p> L'agence Santé publique France souhaite rendre les données de santé publique plus accessibles, \
+                st.markdown('''<div><p> L'agence Santé publique France souhaite rendre les données de santé publique plus accessibles, \
                      pour qu’elles soient utilisables par ses agents. Pour cela, nous faisons appel à vous pour réaliser une \
                          première exploration et visualisation des données, afin que nos agents puissent ensuite s’appuyer sur vos résultats. </p>\
 
@@ -441,7 +443,7 @@ def app():
                                 <li>Un ensemble de tags : catégorie du produit, localisation, origine, etc.</li>\
                                 <li>Les ingrédients composant les produits et leurs additifs éventuels. </li>\
                                 <li>Des informations nutritionnelles : quantité en grammes d’un nutriment pour 100 grammes du produit. </li>
-                            </ul> </p>
+                            </ul> </p></div>
                         ''', unsafe_allow_html=True)
 if __name__ == "__main__":
     app()
